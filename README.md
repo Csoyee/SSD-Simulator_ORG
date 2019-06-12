@@ -21,3 +21,6 @@ $> ./ftl -s [logical ssd size (unit: GB)] -f [log filename]
 ```bash
 $> sudo btrace [device name] | grep "D\s\+W" 
 ```
+
+## TODO
+- MS feature will be added
