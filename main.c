@@ -1,8 +1,8 @@
 #include "ftl.h"
 #include <unistd.h>
 
-char logFile[40];
-char statFile[40];
+char logFile[100];
+char statFile[100];
 
 long KB = 1024;
 long MB = 1024 * 1024;
@@ -63,6 +63,11 @@ void printConf() {
 	printf("[DEBUG] logical page:\t%lld\n", LOGICAL_PAGE);
 	printf("[DEBUG] flash block:\t%lld\n", BLOCKS_PER_FLASH);
 	printf("[DEBUG] flash page:\t%lld\n", PAGES_PER_FLASH);
+	printf("[DEBUG] stream Mode:\t%s ", (streamNum==1?"Original":"Multistream"));
+	if (streamNum > 1)
+		printf(" (%d)\n", streamNum);
+	else 
+		printf("\n");
 }
 
 int initConf(int argc, char* argv[]) {
@@ -70,11 +75,11 @@ int initConf(int argc, char* argv[]) {
 	int param_opt, op;
 
 	LOGICAL_FLASH_SIZE = 0;
-
+	streamNum = 1;
 	op = 10;
 
 	// option get
-	while ((param_opt = getopt(argc, argv, "s:f:o:r:")) != -1){
+	while ((param_opt = getopt(argc, argv, "s:f:o:r:m:")) != -1){
 		switch(param_opt)
 		{
 			case 's':
@@ -89,6 +94,9 @@ int initConf(int argc, char* argv[]) {
 				break;
 			case 'r':
 				strncpy(statFile, optarg, strlen(optarg));
+				break;
+			case 'm':
+				sscanf(optarg, "%d", &streamNum);
 				break;
 		}
 	}
@@ -183,7 +191,7 @@ int main (int argc, char* argv[]) {
 
 		// opCode : operation
 		if (opCode == 1) {
-			if(M_write(start_LPN) < 0) {
+			if(M_write(start_LPN, 1) < 0) {
 				printf("[ERROR] (%s, %d) write failed\n", __func__, __LINE__);
 				break;
 			}
