@@ -34,6 +34,7 @@ void putFreeBlock(int index) {
 	bMap[freeMeta.freeTail].nextBlk = -1;
 	
 	bMap[index].invalidCnt = -1;
+	bMap[index].streamID = -1;
 	
 	if(freeMeta.freeHead == -1){
 		freeMeta.freeHead = index;
@@ -49,7 +50,7 @@ void putFreeBlock(int index) {
 // if there is free block less than 1, perform GC
 int searchFreeBlock(int streamID) {
 
-	int index;
+	int index, ret;
 	
 	if (streamNum == 1) {
 		if (freeMeta.freeBlock <= 1) {
@@ -64,7 +65,7 @@ int searchFreeBlock(int streamID) {
 				updateBlock[0].curPage = 0;
 			}
 
-			index = M_GC();
+			M_GC();
 			return -1;
 		} 
 
@@ -81,15 +82,17 @@ int searchFreeBlock(int streamID) {
 			return -2;
 		}
 	} else {
+		// do GC to make free block 
 		while (freeMeta.freeBlock <= 1) {
-			index = M_GC_stream();
-			if(index < 0)	return -2;
+			ret = M_GC_stream(); // return code may represent error or gc victim stream number
+			if(ret < 0)	return -2;
+			if (ret == streamID) 
+				return -1;
 		}
 
 		index = getFreeBlock(streamID);
 		if(index == -1)
 			printf("[ERROR] (%s, %d)\n", __func__, __LINE__);
-
 		updateBlock[streamID].curBlock = index;
 		updateBlock[streamID].curPage = 0;
 
@@ -104,7 +107,7 @@ int searchFreeBlock(int streamID) {
 
 ////////
 // (@VIC) greedy victim selection algorithm
-int victim_select_greedy() {
+int victimGreedy() {
 
 	long long i;
 	int max, res, secondMax, flag;
@@ -137,6 +140,8 @@ int victim_select_greedy() {
 /////
 
 void initStat() {
+	int i;
+
 	stat.read = 0;
 	stat.write = 0;
 	stat.block.copyback = 0;
@@ -144,6 +149,16 @@ void initStat() {
 	stat.bef_write = 0;
 	stat.bef_block.copyback = 0;
 	stat.bef_block.gcCnt = 0;
+
+	for (i=0 ; i<streamNum ; i++) {
+		streamStat[i].read = 0;
+		streamStat[i].write = 0;
+		streamStat[i].block.copyback = 0;
+		streamStat[i].block.gcCnt = 0;
+		streamStat[i].bef_write = 0;
+		streamStat[i].bef_block.copyback = 0;
+		streamStat[i].bef_block.gcCnt = 0;
+	}
 }
 
 void M_close() {
@@ -178,6 +193,7 @@ void M_init() {
 			bMap[i].invalidCnt = -1;
 			bMap[i].nextBlk = i+1; 
 			bMap[i].eraseCount =0 ;
+			bMap[i].streamID = -1;
 		}
 		physicalMap[i].lpn = -1;
 		physicalMap[i].valid = 0;
@@ -209,7 +225,7 @@ int M_GC () {
 	long long index_start, cpBack;
 
 
-	victimBlock = victim_select_greedy();
+	victimBlock = victimGreedy();
 	
 	// update statistic
 	bMap[victimBlock].eraseCount++;
@@ -265,13 +281,16 @@ int M_GC_stream () {
 	int index_start, cpBack;
 
 
-	victimBlock = victim_select_greedy();
+	victimBlock = victimGreedy();
 	
 	// update statistic
 	bMap[victimBlock].eraseCount++;
 	stat.block.gcCnt ++ ;
 	
 	victimStream = bMap[victimBlock].streamID;
+	if(victimStream < 0 || victimStream >= streamNum){
+		printf("[ERROR] wrong victimStream\n");
+	}
 
 	// Copyback if there are valid pages
 	index_start = victimBlock * PAGES_PER_BLOCK;
@@ -309,6 +328,7 @@ int M_GC_stream () {
 
 	// update statistic
 	stat.block.copyback += cpBack;
+	streamStat[victimStream].block.copyback += cpBack;
 
 	// verify
 	if ((PAGES_PER_BLOCK-verify.maxInvalidity) != cpBack){		
@@ -320,7 +340,7 @@ int M_GC_stream () {
 	// free Block
 	putFreeBlock(victimBlock);
 
-	return victimBlock;
+	return victimStream;
 }
 
 //////
@@ -344,6 +364,7 @@ int M_write(int lpn, int streamID) {
 	
 
 	stat.write ++;
+	streamStat[streamID].write ++;
 
 	if (logicalMap[lpn].ppn != -1 ) {
 		// invalidate Old data

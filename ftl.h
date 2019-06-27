@@ -71,6 +71,7 @@ typedef struct _COUNT {
 int streamNum;
 
 COUNT stat;
+COUNT streamStat[MAX_STREAM];
 FreeMeta freeMeta;
 L2P* logicalMap;
 P2L* physicalMap;
