@@ -10,8 +10,8 @@ $> ./ftl -s [logical ssd size (unit: GB)] -f [log filename]
 ```
 
 ## Option
-`-r [file name] : printBlkStat (main.c)`  
-`-m [stream num] : specifies the number of streams (maximum 4)`
+- `-r [file name] : printBlkStat (main.c)`  
+- `-m [stream num] : specifies the number of streams (maximum 4)`
 
 
 ## blktrace
