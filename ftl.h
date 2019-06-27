@@ -34,6 +34,7 @@ typedef struct _blockMap{
 	int invalidCnt;
 	int nextBlk;
 	int eraseCount;
+	int streamID;
 }BlockMap;
 
 /* verify structure is for just veriftying if the ftl works well
@@ -67,8 +68,10 @@ typedef struct _COUNT {
 	struct _GC block;
 }COUNT;
 
+int streamNum;
 
 COUNT stat;
+COUNT streamStat[MAX_STREAM];
 FreeMeta freeMeta;
 L2P* logicalMap;
 P2L* physicalMap;
@@ -82,4 +85,4 @@ void M_init();
 void M_close();
 int M_GC();
 void M_read(int lpn);
-int M_write(int lpn);
+int M_write(int lpn, int streamID);

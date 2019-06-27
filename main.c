@@ -1,8 +1,8 @@
 #include "ftl.h"
 #include <unistd.h>
 
-char logFile[40];
-char statFile[40];
+char logFile[100];
+char statFile[100];
 
 long KB = 1024;
 long MB = 1024 * 1024;
@@ -63,6 +63,11 @@ void printConf() {
 	printf("[DEBUG] logical page:\t%lld\n", LOGICAL_PAGE);
 	printf("[DEBUG] flash block:\t%lld\n", BLOCKS_PER_FLASH);
 	printf("[DEBUG] flash page:\t%lld\n", PAGES_PER_FLASH);
+	printf("[DEBUG] stream Mode:\t%s ", (streamNum==1?"Original":"Multistream"));
+	if (streamNum > 1)
+		printf(" (%d)\n", streamNum);
+	else 
+		printf("\n");
 }
 
 int initConf(int argc, char* argv[]) {
@@ -70,11 +75,11 @@ int initConf(int argc, char* argv[]) {
 	int param_opt, op;
 
 	LOGICAL_FLASH_SIZE = 0;
-
+	streamNum = 1;
 	op = 10;
 
 	// option get
-	while ((param_opt = getopt(argc, argv, "s:f:o:r:")) != -1){
+	while ((param_opt = getopt(argc, argv, "s:f:o:r:m:")) != -1){
 		switch(param_opt)
 		{
 			case 's':
@@ -90,11 +95,14 @@ int initConf(int argc, char* argv[]) {
 			case 'r':
 				strncpy(statFile, optarg, strlen(optarg));
 				break;
+			case 'm':
+				sscanf(optarg, "%d", &streamNum);
+				break;
 		}
 	}
 	if (logFile[0] == 0){
 		printf("Please input log file name: -f [logFilename]\n");
-		return 0;
+		return -1;
 	}
 
 	
@@ -115,6 +123,8 @@ int initConf(int argc, char* argv[]) {
 }
 
 void printCount() {
+	int i;
+
 	printf("\nread: %lld\t\twrite: %lld\n", stat.read, stat.write);
 	printf("gc: %lld\tcopyback: %lld\n\n", stat.block.gcCnt, stat.block.copyback);
 	if(stat.write!=0)
@@ -123,9 +133,17 @@ void printCount() {
 	if((stat.write - stat.bef_write) != 0)
 		printf("R_WAF: %lf \n\n", (double)((double)(stat.write-stat.bef_write+stat.block.copyback-stat.bef_block.copyback)/(stat.write - stat.bef_write)));
 	
+
+	for (i=0 ; i<streamNum ; i++) {
+		if(streamStat[i].write != 0)
+			printf("stream%d: %lld %lf \t", i, streamStat[i].write, (double)((double)(streamStat[i].write+streamStat[i].block.copyback)/streamStat[i].write));
+	}
+	printf("\n");
+
 	stat.bef_write = stat.write;
 	stat.bef_block.copyback = stat.block.copyback;
 	stat.bef_block.gcCnt = stat.block.gcCnt;
+
 }
 
 int trace_parsing (FILE* fp, long long *start_LPN) {
@@ -183,7 +201,7 @@ int main (int argc, char* argv[]) {
 
 		// opCode : operation
 		if (opCode == 1) {
-			if(M_write(start_LPN) < 0) {
+			if(M_write(start_LPN, 0) < 0) {
 				printf("[ERROR] (%s, %d) write failed\n", __func__, __LINE__);
 				break;
 			}
