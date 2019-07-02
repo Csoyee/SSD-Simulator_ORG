@@ -1,17 +1,17 @@
 # SSD-Simulator
 SSD simulator using blktrace
 
-
 ## USAGE
 ```bash
 $> make
-$> ./ftl -s [logical ssd size (unit: GB)] -f [log filename]
+$> ./ftl -s [logical ssd size (unit: GB)] -f [log filename] # option -s, -f is necessary
 
 ```
 
-## Option
-- `-r [file name] : printBlkStat (main.c)`  
-- `-m [stream num] : specifies the number of streams (maximum 4)`
+## Optional Option
+- `-r [file name] : printBlkStat to file (main.c)`  
+- `-m [stream num] : specifies the number of streams (default: 1,maximum: 4)`
+- `-o [op region] : specifies the op region (default: 10)`
 
 
 ## blktrace
@@ -23,5 +23,5 @@ $> ./ftl -s [logical ssd size (unit: GB)] -f [log filename]
 $> sudo btrace [device name] | grep "D\s\+W" 
 ```
 
-## TODO
-- MS feature will be added
+## Multi-Stream Feature
+- [commit log](https://github.com/Csoyee/SSD-Simulator_ORG/commit/db259024f91bb142dc3a98ee503fb22372af0eac)
