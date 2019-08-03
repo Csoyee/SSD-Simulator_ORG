@@ -65,6 +65,7 @@ typedef struct _COUNT {
 	struct _GC bef_block;
 	long long read;
 	long long write;
+	long long discard;
 	struct _GC block;
 }COUNT;
 
@@ -84,5 +85,6 @@ void printCount();
 void M_init();
 void M_close();
 int M_GC();
+int M_GC_stream();
 void M_read(int lpn);
 int M_write(int lpn, int streamID);

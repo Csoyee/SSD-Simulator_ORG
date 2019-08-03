@@ -144,6 +144,7 @@ void initStat() {
 
 	stat.read = 0;
 	stat.write = 0;
+	stat.discard = 0;
 	stat.block.copyback = 0;
 	stat.block.gcCnt = 0;
 	stat.bef_write = 0;
@@ -350,6 +351,16 @@ void M_read (int lpn) {
 	stat.read ++;
 }
 
+void M_discard(int lpn) {
+	int ppn;
+
+	stat.discard ++; 
+	ppn = logicalMap[lpn].ppn;
+	physicalMap[ppn].lpn	 = -1;
+	physicalMap[ppn].valid =0;
+
+	bMap[getBlockNo(ppn)].invalidCnt++;
+}
 
 // this function is for write operation
 int M_write(int lpn, int streamID) {

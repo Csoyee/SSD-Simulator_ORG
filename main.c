@@ -146,7 +146,7 @@ void printCount() {
 
 }
 
-int trace_parsing (FILE* fp, long long *start_LPN) {
+int trace_parsing (FILE* fp, long long *start_LPN, long long *length) {
 	char str[1024];
 	char * ptr;
 	long long lpn;
@@ -156,6 +156,7 @@ int trace_parsing (FILE* fp, long long *start_LPN) {
 	if (feof(fp))
 		return -1;
 
+	// TODO: write length 인지, discard option 인지하는 기능
 	if((ptr = strchr(str, 'W')))
 	{
 		ptr = ptr+2;
@@ -178,7 +179,7 @@ int trace_parsing (FILE* fp, long long *start_LPN) {
 int main (int argc, char* argv[]) {
 	FILE * inputFp;
 	int offCnt, opCode, op_count;
-	long long start_LPN;
+	long long start_LPN, length;
 
 	logFile[0] = 0;
 	statFile[0] = 0;
@@ -197,7 +198,7 @@ int main (int argc, char* argv[]) {
 
 	op_count = 0;
 	while (1) {
-		opCode = trace_parsing(inputFp,&start_LPN);
+		opCode = trace_parsing(inputFp,&start_LPN, &length);
 
 		// opCode : operation
 		if (opCode == 1) {
