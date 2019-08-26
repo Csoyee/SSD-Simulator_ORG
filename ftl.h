@@ -3,10 +3,10 @@
 #include <string.h>
 
 #define SECTOR_SIZE 512
-#define PAGES_PER_BLOCK 256
+#define PAGES_PER_BLOCK 1024
 #define PAGE_SIZE 4096
 //#define BLOCK_SIZE 524288
-#define BLOCK_SIZE 1048576
+#define BLOCK_SIZE 4194304
 
 #define getBlockNo(ppn) (ppn/PAGES_PER_BLOCK)
 #define getPageNo(ppn) (ppn%PAGES_PER_BLOCK)

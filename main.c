@@ -148,37 +148,53 @@ void printCount() {
 
 int trace_parsing (FILE* fp, long long *start_LPN, long long *length) {
 	char str[1024];
-	char * ptr;
-	long long lpn;
+	char * ptr, *new;
+	long long lpn, len;
+	int count;
 
 	fgets(str, 1024, fp);
 
-	if (feof(fp))
+	if (feof(fp)){
+		printf("END!\n");
 		return -1;
+	}
 
 	// TODO: write length 인지, discard option 인지하는 기능
 	if((ptr = strchr(str, 'W')))
 	{
-		ptr = ptr+2;
-		sscanf(ptr, "%lld", &lpn);
+		new = strtok(ptr, " ");
+		count = 0;
+		while(new != NULL ) {
+			if(count == 1) {
+				sscanf(new, "%lld", &lpn);
+			} else if (count == 3) {
+				sscanf(new, "%lld", &len);
+			}
+			new = strtok(NULL, " ");
+			count ++;
+		}
 
-		if(lpn*SECTOR_SIZE/PAGE_SIZE < LOGICAL_PAGE)
+
+		if((lpn+len)*SECTOR_SIZE/PAGE_SIZE < LOGICAL_PAGE) {
 			*start_LPN = lpn*SECTOR_SIZE/PAGE_SIZE;
+			*length = len*SECTOR_SIZE/PAGE_SIZE;
+		}
 		else {
 			printf("[ERROR] (%s, %d) lpn range\n", __func__, __LINE__);
 			return -1;
 		}
 
 		return 1;
-	} else 
-		return -1;
-
+	} else {
+		printf("%s\n", str);
+		return 0;
+	}
 	return 0;
 }
 
 int main (int argc, char* argv[]) {
 	FILE * inputFp;
-	int offCnt, opCode, op_count;
+	int offCnt, opCode, op_count, i ;
 	long long start_LPN, length;
 
 	logFile[0] = 0;
@@ -202,14 +218,16 @@ int main (int argc, char* argv[]) {
 
 		// opCode : operation
 		if (opCode == 1) {
-			if(M_write(start_LPN, 0) < 0) {
-				printf("[ERROR] (%s, %d) write failed\n", __func__, __LINE__);
-				break;
+			for (i=0 ; i< length  ; i++) {
+				if(M_write(start_LPN+i, 0) < 0) {
+					printf("[ERROR] (%s, %d) write failed\n", __func__, __LINE__);
+					break;
+				}
 			}
 		} else if(opCode == -1)
 			break;
 		op_count ++;
-		if(op_count %2500000 == 0){
+		if(op_count %250000 == 0){
 			printCount();
 		}
 	}
