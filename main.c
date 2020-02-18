@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 char logFile[100];
+char loadFile[100];
 char statFile[100];
 
 long KB = 1024;
@@ -25,7 +26,7 @@ int Compare(const void * p1, const void *p2) {
 
 int printBlkStat () {
 	FILE * statf;
-	int i ;
+	int i, j ;
 	int resEr[BLOCKS_PER_FLASH], resVa[BLOCKS_PER_FLASH];
 
 
@@ -40,16 +41,46 @@ int printBlkStat () {
 		resVa[i] = PAGES_PER_BLOCK - bMap[i].invalidCnt;
 
 	// erase count
-	for (i=0 ; i<BLOCKS_PER_FLASH ; i ++)
-		resEr[i] = bMap[i].eraseCount;
+	//for (i=0 ; i<BLOCKS_PER_FLASH ; i ++)
+	//	resEr[i] = bMap[i].eraseCount;
 
 	qsort(resVa, BLOCKS_PER_FLASH, sizeof(int), Compare);
-	qsort(resEr, BLOCKS_PER_FLASH, sizeof(int), Compare);
+	//qsort(resEr, BLOCKS_PER_FLASH, sizeof(int), Compare);
 
 
 	for (i=0 ; i<BLOCKS_PER_FLASH ; i ++)
-		fprintf(statf, "%d\t%d\n", resVa[i], resEr[i]);
+		fprintf(statf, "%d\n", resVa[i]);
 
+	int addr, befAddr=0, sequential=0, partCnt =0, cnt = 0 ;
+	for (i=0 ; i<BLOCKS_PER_FLASH ; i++) {
+		befAddr = 0;
+		partCnt = 0;
+		for(j=0 ; j<PAGES_PER_BLOCK; j++) {
+			if(j % 512 == 0)
+				fprintf (statf,"---\n");
+
+			fprintf(statf, "%d", physicalMap[i*PAGES_PER_BLOCK + j].lpn);
+			addr = physicalMap[i*PAGES_PER_BLOCK+j].lpn;
+			if(befAddr +1 == addr) {
+				sequential ++;
+			} else {
+				if(addr != -1){
+					cnt++;
+					partCnt ++;
+					fprintf(statf, "(*)");
+				}
+			}
+			fprintf(statf, "\t");
+			befAddr = addr;
+
+			if(j%4 == 3) {
+				fprintf(statf, "\n");
+			}
+		}
+		fprintf (statf,"--- (%d / %d)\n\n\n", bMap[i].eraseCount, partCnt);
+	}
+
+	fprintf(statf, "Sequentiality: %d, %d, %f\n", sequential, cnt, (float)sequential/cnt);
 	fclose(statf);
 
 	return 0;
@@ -76,10 +107,10 @@ int initConf(int argc, char* argv[]) {
 
 	LOGICAL_FLASH_SIZE = 0;
 	streamNum = 1;
-	op = 10;
+	op = 7;
 
 	// option get
-	while ((param_opt = getopt(argc, argv, "s:f:o:r:m:")) != -1){
+	while ((param_opt = getopt(argc, argv, "s:f:o:r:m:l:")) != -1){
 		switch(param_opt)
 		{
 			case 's':
@@ -98,6 +129,9 @@ int initConf(int argc, char* argv[]) {
 			case 'm':
 				sscanf(optarg, "%d", &streamNum);
 				break;
+			case 'l':
+				strncpy(loadFile, optarg, strlen(optarg));
+				break;
 		}
 	}
 	if (logFile[0] == 0){
@@ -105,7 +139,6 @@ int initConf(int argc, char* argv[]) {
 		return -1;
 	}
 
-	
 	if(LOGICAL_FLASH_SIZE == 0 ){
 		printf("Please input flash size (opt: -s [x GB])\n");
 		return -1;
@@ -192,6 +225,52 @@ int trace_parsing (FILE* fp, long long *start_LPN, long long *length) {
 	return 0;
 }
 
+int trace_parsing2 (FILE* fp, long long *start_LPN, long long *length) {
+	char str[1024];
+	char * ptr, *new;
+	long long lpn, len;
+	int count;
+
+	fgets(str, 1024, fp);
+
+	if (feof(fp)){
+		printf("END!\n");
+		return -1;
+	}
+
+	// TODO: write length 인지, discard option 인지하는 기능
+	if((ptr = strchr(str, 'W')))
+	{
+		new = strtok(ptr, " ");
+		count = 0;
+		while(new != NULL ) {
+			if(count == 1) {
+				sscanf(new, "%lld", &lpn);
+			} else if (count == 2) {
+				sscanf(new, "%lld", &len);
+			}
+			new = strtok(NULL, " ");
+			count ++;
+		}
+
+
+		if((lpn+len)*SECTOR_SIZE/PAGE_SIZE < LOGICAL_PAGE) {
+			*start_LPN = lpn*SECTOR_SIZE/PAGE_SIZE;
+			*length = len*SECTOR_SIZE/PAGE_SIZE;
+		}
+		else {
+			printf("[ERROR] (%s, %d) lpn range\n", __func__, __LINE__);
+			return -1;
+		}
+
+		return 1;
+	} else {
+		printf("%s\n", str);
+		return 0;
+	}
+	return 0;
+}
+
 int main (int argc, char* argv[]) {
 	FILE * inputFp;
 	int offCnt, opCode, op_count, i ;
@@ -199,9 +278,42 @@ int main (int argc, char* argv[]) {
 
 	logFile[0] = 0;
 	statFile[0] = 0;
+	logFile[0] = 0;
 	if( initConf(argc, argv)< 0)
 		return 0;
 	
+	M_init();
+
+	if(loadFile[0]) {
+		if ( (inputFp = fopen(loadFile, "r")) == 0 ) {
+			printf("Open File Fail \n");
+			exit(1);
+		}
+
+
+		printf("Start Loading\n");
+		while (1) {
+			opCode = trace_parsing2(inputFp,&start_LPN, &length);
+	
+			// opCode : operation
+			if (opCode == 1) {
+				for (i=0 ; i< length  ; i++) {
+					if(M_write(start_LPN+i, 0) < 0) {
+						printf("[ERROR] (%s, %d) write failed\n", __func__, __LINE__);
+						break;
+					}
+				}
+			} else if(opCode == -1)
+				break;
+			op_count ++;
+			if(op_count % 4000 == 0){
+				printCount();
+			}
+		}
+	
+		initStat();
+		fclose(inputFp);
+	} 
 
 	if ( (inputFp = fopen(logFile, "r")) == 0 ) {
 		printf("Open File Fail \n");
@@ -210,11 +322,10 @@ int main (int argc, char* argv[]) {
 
 	printConf();
 
-	M_init();
 
 	op_count = 0;
 	while (1) {
-		opCode = trace_parsing(inputFp,&start_LPN, &length);
+		opCode = trace_parsing2(inputFp,&start_LPN, &length);
 
 		// opCode : operation
 		if (opCode == 1) {
@@ -227,7 +338,7 @@ int main (int argc, char* argv[]) {
 		} else if(opCode == -1)
 			break;
 		op_count ++;
-		if(op_count %250000 == 0){
+		if(op_count %2000 == 0){
 			printCount();
 		}
 	}
